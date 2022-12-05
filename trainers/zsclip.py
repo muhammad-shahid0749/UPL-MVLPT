@@ -8,7 +8,6 @@ from clip import clip
 from clip.model import convert_weights
 
 from .coop import load_clip_to_cpu
-from .imagenet_templates import IMAGENET_TEMPLATES, IMAGENET_TEMPLATES_SELECT
 
 CUSTOM_TEMPLATES = {
     "OxfordPets": "a photo of a {}, a type of pet.",
@@ -26,6 +25,8 @@ CUSTOM_TEMPLATES = {
     "ImageNetV2": "a photo of a {}.",
     "ImageNetA": "a photo of a {}.",
     "ImageNetR": "a photo of a {}.",
+    "Jaffe": "a photo of a {}.",
+    "CKPlus": "a photo of a {}.",
 }
 
 
