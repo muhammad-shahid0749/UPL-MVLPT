@@ -94,6 +94,28 @@ def extend_cfg(cfg):
     cfg.TRAINER.UPLTrainer.PREC = "fp16"  # fp16, fp32, amp
     cfg.TRAINER.UPLTrainer.CLASS_TOKEN_POSITION = "end"  # 'middle' or 'end' or 'front'
 
+    cfg.TRAINER.UPLTrainer.PROJECT_METHOD = 'transformer' # could be identity / mlp / transformer
+    cfg.TRAINER.UPLTrainer.PROJECT_DIM = 128 # if coop/vpt dimension doesnot match, project to vpt/coop
+
+
+
+    cfg.TRAINER.UPLTrainer.VPT = CN()
+    cfg.TRAINER.UPLTrainer.VPT.N_CTX = 16  # number of context vectors
+    cfg.TRAINER.UPLTrainer.VPT.CSC = False  # class-specific context
+    cfg.TRAINER.UPLTrainer.VPT.CTX_INIT = ""  # initialization words
+    cfg.TRAINER.UPLTrainer.VPT.DROPOUT = 0.0  # dropout
+    cfg.TRAINER.UPLTrainer.VPT.PROJECT = -1  # Project
+    cfg.TRAINER.UPLTrainer.VPT.DEEP = True # Deep or shallow
+
+
+
+
+    cfg.TRAINER.UPLTrainer.COOP = CN()
+    cfg.TRAINER.UPLTrainer.COOP.N_CTX = 0  # number of context vectors
+    cfg.TRAINER.UPLTrainer.COOP.CSC = False  # class-specific context
+    cfg.TRAINER.UPLTrainer.COOP.CTX_INIT = ""  # initialization words
+    cfg.TRAINER.UPLTrainer.COOP.CLASS_TOKEN_POSITION = "middle"  # 'middle' or 'end' or 'front'
+
 
 def setup_cfg(args):
     cfg = get_cfg_default()

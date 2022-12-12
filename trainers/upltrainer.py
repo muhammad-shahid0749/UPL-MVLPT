@@ -328,17 +328,26 @@ class TextEncoder(nn.Module):
 
 #        return prompts
 
+from torch.nn import Dropout
+import math
+from functools import reduce
+from operator import mul
+from torch.nn.modules.utils import _pair
 
 class MultitaskVLPromptLearner(nn.Module):
     def __init__(self, cfg, classnames, clip_model):
         super().__init__()
         # DEFAULT is VPT
         n_cls = len(classnames)
-        coop_n_ctx = cfg.TRAINER.MVLPT.COOP.N_CTX
-        vpt_n_ctx = cfg.TRAINER.MVLPT.VPT.N_CTX
+        #coop_n_ctx = cfg.TRAINER.UPLTrainer.COOP.N_CTX
+        coop_n_ctx = 0
+        #vpt_n_ctx = cfg.TRAINER.UPLTrainer.VPT.N_CTX
+        vpt_n_ctx = 16
 
-        coop_ctx_init = cfg.TRAINER.MVLPT.COOP.CTX_INIT
-        vpt_ctx_init = cfg.TRAINER.MVLPT.VPT.CTX_INIT
+        #coop_ctx_init = cfg.TRAINER.UPLTrainer.COOP.CTX_INIT
+        coop_ctx_init = ""
+        #vpt_ctx_init = cfg.TRAINER.UPLTrainer.VPT.CTX_INIT
+        vpt_ctx_init = ""
 
         dtype = clip_model.dtype
         coop_ctx_dim = clip_model.ln_final.weight.shape[0]
@@ -351,20 +360,15 @@ class MultitaskVLPromptLearner(nn.Module):
 
         assert cfg_imsize == clip_imsize, f"cfg_imsize ({cfg_imsize}) must equal to clip_imsize ({clip_imsize})"
 
-        self.vpt_dropout = Dropout( cfg.TRAINER.MVLPT.VPT.DROPOUT )
-        self.vpt_deep = cfg.TRAINER.MVLPT.VPT.DEEP
+        #self.vpt_dropout = Dropout( cfg.TRAINER.UPLTrainer.VPT.DROPOUT )
+        self.vpt_dropout = Dropout( 0.0 )
+        #self.vpt_deep = cfg.TRAINER.UPLTrainer.VPT.DEEP
+        self.vpt_deep = True
         self.vpt_embeddings = None
         self.vpt_embeddings_deep = None
         if vpt_n_ctx != 0:
-            if cfg.TRAINER.MVLPT.VPT.PROJECT > -1:
-                vpt_dim = cfg.TRAINER.MVLPT.VPT.PROJECT
-                self.vpt_proj = nn.Linear(
-                    vpt_dim, vpt_ctx_dim).type(dtype)
-                nn.init.kaiming_normal_(
-                    self.vpt_proj.weight, a=0, mode='fan_out')
-            else:
-                vpt_dim = vpt_ctx_dim
-                self.vpt_proj = nn.Identity()
+            vpt_dim = vpt_ctx_dim
+            self.vpt_proj = nn.Identity()
 
             if vpt_ctx_init:
                 # Don't support ctx init for MVLPT
@@ -406,12 +410,9 @@ class MultitaskVLPromptLearner(nn.Module):
 
             else:
                 # random initialization
-                if cfg.TRAINER.MVLPT.COOP.CSC:
-                    print("Initializing class-specific contexts")
-                    ctx_vectors = torch.empty(n_cls, coop_n_ctx, coop_ctx_dim, dtype=dtype)
-                else:
-                    print("Initializing a generic context")
-                    ctx_vectors = torch.empty(coop_n_ctx, coop_ctx_dim, dtype=dtype)
+                #if cfg.TRAINER.UPLTrainer.COOP.CSC:
+                print("Initializing a generic context")
+                ctx_vectors = torch.empty(coop_n_ctx, coop_ctx_dim, dtype=dtype)
                 nn.init.normal_(ctx_vectors, std=0.02)
                 prompt_prefix = " ".join(["X"] * coop_n_ctx)
 
@@ -422,9 +423,9 @@ class MultitaskVLPromptLearner(nn.Module):
 
         self.mvlpt_proj = nn.Identity()
         if vpt_n_ctx != 0 and coop_n_ctx != 0:
-            self.mvlpt_proj_ctx_dim = cfg.TRAINER.MVLPT.PROJECT_DIM
+            self.mvlpt_proj_ctx_dim = cfg.TRAINER.UPLTrainer.PROJECT_DIM
             
-            if cfg.TRAINER.MVLPT.PROJECT_METHOD == 'identity':
+            if cfg.TRAINER.UPLTrainer.PROJECT_METHOD == 'identity':
                 self.mvlpt_proj = nn.Identity()
             else:
                 # match dimension
@@ -438,10 +439,10 @@ class MultitaskVLPromptLearner(nn.Module):
                     self.mvlpt_proj_ctx_vpt_pre = nn.Linear( vpt_ctx_dim, self.mvlpt_proj_ctx_dim, dtype=dtype  )
                     self.mvlpt_proj_ctx_vpt_post = nn.Linear( self.mvlpt_proj_ctx_dim , vpt_ctx_dim, dtype=dtype )
 
-                if cfg.TRAINER.MVLPT.PROJECT_METHOD == 'mlp':
+                if cfg.TRAINER.UPLTrainer.PROJECT_METHOD == 'mlp':
                     self.mvlpt_proj = nn.GeLU()
                     
-                elif cfg.TRAINER.MVLPT.PROJECT_METHOD == 'transformer':
+                elif cfg.TRAINER.UPLTrainer.PROJECT_METHOD == 'transformer':
                     from clip.model import Transformer
                     self.mvlpt_proj = Transformer(width=self.mvlpt_proj_ctx_dim, layers=1, heads=1)
                     # for n, m in self.MVLPT_proj.named_modules():
@@ -473,10 +474,10 @@ class MultitaskVLPromptLearner(nn.Module):
         self.n_cls = n_cls
         self.vpt_n_ctx = vpt_n_ctx
         self.coop_n_ctx = coop_n_ctx
-
         self.tokenized_prompts = tokenized_prompts  # torch.Tensor
         self.name_lens = name_lens
-        self.class_token_position = cfg.TRAINER.MVLPT.COOP.CLASS_TOKEN_POSITION
+        self.class_token_position = cfg.TRAINER.UPLTrainer.COOP.CLASS_TOKEN_POSITION
+   
 
     def forward_mvlpt_proj(self, dtype=torch.float):
         if self.coop_n_ctx == 0 or isinstance(self.mvlpt_proj, nn.Identity) or self.vpt_n_ctx == 0:
