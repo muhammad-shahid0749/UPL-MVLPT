@@ -200,23 +200,24 @@ class TextEncoder(nn.Module):
         self.cfg = cfg
 
     def forward(self, prompts, tokenized_prompts):
-        if not self.cfg.TRAINER.CUT_CONTEXTLEN:
-            x = prompts + self.positional_embedding.type(self.dtype)
-            x = x.permute(1, 0, 2)  # NLD -> LND
-            x = self.transformer(x)
-            x = x.permute(1, 0, 2)  # LND -> NLD
-        else:
-            x = prompts + self.positional_embedding.type(self.dtype)[:prompts.shape[1], :]
-            x = x.permute(1, 0, 2)  # NLD -> LND
+        #if not self.cfg.TRAINER.CUT_CONTEXTLEN:
+        #    x = prompts + self.positional_embedding.type(self.dtype)
+        #    x = x.permute(1, 0, 2)  # NLD -> LND
+        #    x = self.transformer(x)
+        #    x = x.permute(1, 0, 2)  # LND -> NLD
+        #else:
+        x = prompts + self.positional_embedding.type(self.dtype)[:prompts.shape[1], :]
+        x = x.permute(1, 0, 2)  # NLD -> LND
             
-            for block in self.transformer.resblocks:
-                if block.attn_mask.shape[0] != x.shape[0]:
-                    block.attn_mask = block.attn_mask[:x.shape[0], :x.shape[0]]
-            # x = self.transformer(x)
-            from torch.utils.checkpoint import checkpoint_sequential
-            act_chunk_size = min(self.cfg.TRAINER.ACT_CKPT, len(self.transformer.resblocks))
-            x = checkpoint_sequential(self.transformer.resblocks, act_chunk_size, x) 
-            x = x.permute(1, 0, 2)  # LND -> NLD
+        for block in self.transformer.resblocks:
+            if block.attn_mask.shape[0] != x.shape[0]:
+                block.attn_mask = block.attn_mask[:x.shape[0], :x.shape[0]]
+        # x = self.transformer(x)
+        from torch.utils.checkpoint import checkpoint_sequential
+        #act_chunk_size = min(self.cfg.TRAINER.ACT_CKPT, len(self.transformer.resblocks))
+        act_chunk_size = min(1, len(self.transformer.resblocks))
+        x = checkpoint_sequential(self.transformer.resblocks, act_chunk_size, x) 
+        x = x.permute(1, 0, 2)  # LND -> NLD
         
         x = self.ln_final(x).type(self.dtype)
 
@@ -385,6 +386,7 @@ class MultitaskVLPromptLearner(nn.Module):
 
                 if self.vpt_deep:  # noqa
                     self.vision_layers = len([k for k in clip_model.state_dict().keys() if k.startswith("visual.") and k.endswith(".attn.in_proj_weight")])
+                    #self.vision_layers = len([k for k in clip_model.state_dict().keys() if k.startswith(f"visual.layer{b}") for b in [1, 2, 3, 4]])
 
                     self.vpt_embeddings_deep = nn.Parameter(torch.zeros(
                         self.vision_layers-1, vpt_n_ctx, vpt_dim, dtype=dtype))
@@ -453,12 +455,12 @@ class MultitaskVLPromptLearner(nn.Module):
     
         prompts = [prompt_prefix + " " + name + "." for name in classnames]
         
-        if cfg.TRAINER.CUT_CONTEXTLEN:
-            sot_token = _tokenizer.encoder["<|startoftext|>"]
-            eot_token = _tokenizer.encoder["<|endoftext|>"]
-            max_length = min(clip_model.context_length, max([len([sot_token] + _tokenizer.encode(p) + [eot_token]) for p in prompts]))
-        else:
-            max_length = clip_model.context_length
+        #if cfg.TRAINER.CUT_CONTEXTLEN:
+        #    sot_token = _tokenizer.encoder["<|startoftext|>"]
+        #    eot_token = _tokenizer.encoder["<|endoftext|>"]
+        #    max_length = min(clip_model.context_length, max([len([sot_token] + _tokenizer.encode(p) + [eot_token]) for p in prompts]))
+        #else:
+        max_length = clip_model.context_length
         print("Current Context Length is: ", max_length)
         # exit()
         tokenized_prompts = torch.cat([clip.tokenize(p, context_length=max_length) for p in prompts])
@@ -476,7 +478,8 @@ class MultitaskVLPromptLearner(nn.Module):
         self.coop_n_ctx = coop_n_ctx
         self.tokenized_prompts = tokenized_prompts  # torch.Tensor
         self.name_lens = name_lens
-        self.class_token_position = cfg.TRAINER.UPLTrainer.COOP.CLASS_TOKEN_POSITION
+        #self.class_token_position = cfg.TRAINER.UPLTrainer.COOP.CLASS_TOKEN_POSITION
+        self.class_token_position = cfg.TRAINER.UPLTrainer.CLASS_TOKEN_POSITION
    
 
     def forward_mvlpt_proj(self, dtype=torch.float):
@@ -629,8 +632,12 @@ class CustomCLIP(nn.Module):
         self.text_encoder = TextEncoder(clip_model, cfg)
         self.logit_scale = clip_model.logit_scale
         self.dtype = clip_model.dtype
+        self.clip = clip_model
+        self.classnames = classnames
+        self.cfg = cfg
 
-        self.multi_task_label_pertask = cfg.DATASET.MULTITASK_LABEL_PERTASK
+        #self.multi_task_label_pertask = cfg.DATASET.MULTITASK_LABEL_PERTASK
+        self.multi_task_label_pertask = False
         if self.multi_task_label_pertask:
             self.class_index_pertask_start = torch.arange(dm._num_classes)
             self.class_index_pertask_end = torch.arange(dm._num_classes)
@@ -743,302 +750,302 @@ class CustomCLIP(nn.Module):
 #        return logits, image_features, text_features
 
 
-@TRAINER_REGISTRY.register()
-class MVLPT(TrainerX):
-    """Context Optimization (MVLPT).
+#@TRAINER_REGISTRY.register()
+#class MVLPT(TrainerX):
+#    """Context Optimization (MVLPT).
 
-    Learning to Prompt for Vision-Language Models
-    https://arxiv.org/abs/2109.01134
-    """
+#    Learning to Prompt for Vision-Language Models
+#    https://arxiv.org/abs/2109.01134
+#    """
 
-    def check_cfg(self, cfg):
-        assert cfg.TRAINER.MVLPT.PREC in ["fp16", "fp32", "amp"]
+#    def check_cfg(self, cfg):
+#        assert cfg.TRAINER.MVLPT.PREC in ["fp16", "fp32", "amp"]
 
-    def build_model(self):
-        cfg = self.cfg
-        if self.cfg.DATASET.COOP:
-            classnames = self.dm.dataset.classnames
-        else:
-            classnames = self.dm.lab2cname.values()
+#    def build_model(self):
+#        cfg = self.cfg
+#        if self.cfg.DATASET.COOP:
+#            classnames = self.dm.dataset.classnames
+#        else:
+#            classnames = self.dm.lab2cname.values()
 
-        print(f"Loading CLIP (backbone: {cfg.MODEL.BACKBONE.NAME})")
-        clip_model = load_clip_to_cpu(cfg)
+#        print(f"Loading CLIP (backbone: {cfg.MODEL.BACKBONE.NAME})")
+#        clip_model = load_clip_to_cpu(cfg)
         
-        if cfg.TRAINER.MVLPT.PREC == "fp32" or cfg.TRAINER.MVLPT.PREC == "amp":
-            # CLIP's default precision is fp16
-            clip_model.float()
+#        if cfg.TRAINER.MVLPT.PREC == "fp32" or cfg.TRAINER.MVLPT.PREC == "amp":
+#            # CLIP's default precision is fp16
+#            clip_model.float()
 
-        print("Building custom CLIP")
-        self.model = CustomCLIP(cfg, classnames, clip_model, dm=self.dm)
+#        print("Building custom CLIP")
+#        self.model = CustomCLIP(cfg, classnames, clip_model, dm=self.dm)
 
-        print("Turning off gradients in both the image and the text encoder")
-        for name, param in self.model.named_parameters():
-            if "prompt_learner" not in name:
-                param.requires_grad_(False)
-            else:
-                print(name, param.shape)
+#        print("Turning off gradients in both the image and the text encoder")
+#        for name, param in self.model.named_parameters():
+#            if "prompt_learner" not in name:
+#                param.requires_grad_(False)
+#            else:
+#                print(name, param.shape)
 
-        print(f"Tunable Param: {sum([p.numel() for p in self.model.parameters() if p.requires_grad])/10**6}M, Original CLIP {sum([p.numel() for p in self.model.parameters() if not p.requires_grad])/10**6}M")
+#        print(f"Tunable Param: {sum([p.numel() for p in self.model.parameters() if p.requires_grad])/10**6}M, Original CLIP {sum([p.numel() for p in self.model.parameters() if not p.requires_grad])/10**6}M")
         
-        if cfg.MODEL.INIT_WEIGHTS:
-            load_pretrained_weights(self.model.prompt_learner, cfg.MODEL.INIT_WEIGHTS)
+#        if cfg.MODEL.INIT_WEIGHTS:
+#            load_pretrained_weights(self.model.prompt_learner, cfg.MODEL.INIT_WEIGHTS)
 
-        self.model.to(self.device)
-        # NOTE: only give prompt_learner to the optimizer
-        self.optim = build_optimizer(self.model.prompt_learner, cfg.OPTIM)
-        self.sched = build_lr_scheduler(self.optim, cfg.OPTIM)
-        self.register_model("prompt_learner", self.model.prompt_learner, self.optim, self.sched)
+#        self.model.to(self.device)
+#        # NOTE: only give prompt_learner to the optimizer
+#        self.optim = build_optimizer(self.model.prompt_learner, cfg.OPTIM)
+#        self.sched = build_lr_scheduler(self.optim, cfg.OPTIM)
+#        self.register_model("prompt_learner", self.model.prompt_learner, self.optim, self.sched)
 
-        self.scaler = GradScaler() if cfg.TRAINER.MVLPT.PREC == "amp" else None
+#        self.scaler = GradScaler() if cfg.TRAINER.MVLPT.PREC == "amp" else None
 
-        # Note that multi-gpu training could be slow because CLIP's size is
-        # big, which slows down the copy operation in DataParallel
-        device_count = torch.cuda.device_count()
-        if device_count > 1:
-            print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")
-            self.model = nn.DataParallel(self.model)
+#        # Note that multi-gpu training could be slow because CLIP's size is
+#        # big, which slows down the copy operation in DataParallel
+#        device_count = torch.cuda.device_count()
+#        if device_count > 1:
+#            print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")
+#            self.model = nn.DataParallel(self.model)
 
     
-    def build_data_loader(self):
-        """Create essential data-related attributes.
+#    def build_data_loader(self):
+#        """Create essential data-related attributes.
 
-        A re-implementation of this method must create the
-        same attributes (self.dm is optional).
-        """
-        self.multi_task = self.cfg.DATASET.MULTITASK
-        self.multi_task_label_pertask = self.cfg.DATASET.MULTITASK_LABEL_PERTASK
+#        A re-implementation of this method must create the
+#        same attributes (self.dm is optional).
+#        """
+#        self.multi_task = self.cfg.DATASET.MULTITASK
+#        self.multi_task_label_pertask = self.cfg.DATASET.MULTITASK_LABEL_PERTASK
 
-        if self.cfg.DATASET.COOP:
-            dm = MVLPTCOOPDataManager(self.cfg)
-        elif self.cfg.DATASET.MULTITASK:
-            dm = MVLPTMTDataManager(self.cfg)
-        else:
-            dm = MVLPTDataManager(self.cfg)
+#        if self.cfg.DATASET.COOP:
+#            dm = MVLPTCOOPDataManager(self.cfg)
+#        elif self.cfg.DATASET.MULTITASK:
+#            dm = MVLPTMTDataManager(self.cfg)
+#        else:
+#            dm = MVLPTDataManager(self.cfg)
 
-        self.train_loader_x = dm.train_loader_x
-        self.train_loader_u = dm.train_loader_u  # optional, can be None
-        self.val_loader = dm.val_loader  # optional, can be None
-        self.test_loader = dm.test_loader
+#        self.train_loader_x = dm.train_loader_x
+#        self.train_loader_u = dm.train_loader_u  # optional, can be None
+#        self.val_loader = dm.val_loader  # optional, can be None
+#        self.test_loader = dm.test_loader
 
-        self.num_classes = dm.num_classes
-        self.num_source_domains = dm.num_source_domains
-        self.lab2cname = dm.lab2cname  # dict {label: classname}
+#        self.num_classes = dm.num_classes
+#        self.num_source_domains = dm.num_source_domains
+#        self.lab2cname = dm.lab2cname  # dict {label: classname}
 
-        self.dm = dm
+#        self.dm = dm
 
-    def forward_backward(self, batch):
-        image, label, tasks_ = self.parse_batch_train(batch)
+#    def forward_backward(self, batch):
+#        image, label, tasks_ = self.parse_batch_train(batch)
         
-        # HACK: for multi-label classification, either works
-        if len(label.shape) > 1 and label.shape[-1] > 1:
-            label = label.float()
-            label /= label.sum(dim=-1, keepdim=True)
+#        # HACK: for multi-label classification, either works
+#        if len(label.shape) > 1 and label.shape[-1] > 1:
+#            label = label.float()
+#            label /= label.sum(dim=-1, keepdim=True)
         
-        prec = self.cfg.TRAINER.MVLPT.PREC
-        if prec == "amp":
-            with autocast():
-                output = self.model(image, task=tasks_)
-                loss = F.cross_entropy(output, label)
-            self.optim.zero_grad()
-            self.scaler.scale(loss).backward()
-            self.scaler.step(self.optim)
-            self.scaler.update()
-        else:
-            output = self.model(image, task=tasks_)
-            # print(label.shape, output.shape, label.dtype, output.dtype, tasks_, label.sum(dim=-1))
+#        prec = self.cfg.TRAINER.MVLPT.PREC
+#        if prec == "amp":
+#            with autocast():
+#                output = self.model(image, task=tasks_)
+#                loss = F.cross_entropy(output, label)
+#            self.optim.zero_grad()
+#            self.scaler.scale(loss).backward()
+#            self.scaler.step(self.optim)
+#            self.scaler.update()
+#        else:
+#            output = self.model(image, task=tasks_)
+#            # print(label.shape, output.shape, label.dtype, output.dtype, tasks_, label.sum(dim=-1))
         
-            loss = F.cross_entropy(output, label)
-            self.model_backward_and_update(loss)
+#            loss = F.cross_entropy(output, label)
+#            self.model_backward_and_update(loss)
 
-        # HACK: During training, we hack the eval of multi-label by selecting only one class
-        if len(label.shape) > 1 and label.shape[-1] > 1:
-            label = torch.argmax(label, dim=1)
+#        # HACK: During training, we hack the eval of multi-label by selecting only one class
+#        if len(label.shape) > 1 and label.shape[-1] > 1:
+#            label = torch.argmax(label, dim=1)
         
-        # result = self.dm._metric(label.squeeze().cpu().detach().numpy(), output.cpu().detach().numpy())
+#        # result = self.dm._metric(label.squeeze().cpu().detach().numpy(), output.cpu().detach().numpy())
 
-        loss_summary = {
-            "loss": loss.item(),
-            "acc": compute_accuracy(output, label)[0].item(),
-            # "acc": result,
-        }
-        if tasks_ is not None:
-            loss_summary.update({"num_tasks": len(set(tasks_.tolist()))})
+#        loss_summary = {
+#            "loss": loss.item(),
+#            "acc": compute_accuracy(output, label)[0].item(),
+#            # "acc": result,
+#        }
+#        if tasks_ is not None:
+#            loss_summary.update({"num_tasks": len(set(tasks_.tolist()))})
 
-        if (self.batch_idx + 1) == self.num_batches:
-            self.update_lr()
+#        if (self.batch_idx + 1) == self.num_batches:
+#            self.update_lr()
 
-        return loss_summary
+#        return loss_summary
 
-    def parse_batch_train(self, batch):
-        if self.cfg.DATASET.COOP:
-            inp_key, lab_key, task_key = 'img', 'label', 'domain'
-        else:
-            inp_key, lab_key, task_key = 0, 1, 3
-        input = batch[inp_key]
-        label = batch[lab_key]
-        # print(label.shape, 'label', input.shape, 'input')
-        tasks = None
-        if self.multi_task:
-            tasks = batch[task_key]
-        # input = batch["img"]
-        # label = batch["label"]
-        input = input.to(self.device)
-        label = label.to(self.device)
-        return input, label, tasks
+#    def parse_batch_train(self, batch):
+#        if self.cfg.DATASET.COOP:
+#            inp_key, lab_key, task_key = 'img', 'label', 'domain'
+#        else:
+#            inp_key, lab_key, task_key = 0, 1, 3
+#        input = batch[inp_key]
+#        label = batch[lab_key]
+#        # print(label.shape, 'label', input.shape, 'input')
+#        tasks = None
+#        if self.multi_task:
+#            tasks = batch[task_key]
+#        # input = batch["img"]
+#        # label = batch["label"]
+#        input = input.to(self.device)
+#        label = label.to(self.device)
+#        return input, label, tasks
 
-    def parse_batch_test(self, batch):
-        if self.cfg.DATASET.COOP:
-            inp_key, lab_key, task_key = 'img', 'label', 'domain'
-        else:
-            inp_key, lab_key, task_key = 0, 1, 3
-        input = batch[inp_key]
-        label = batch[lab_key]
-        tasks = None
-        if self.multi_task:
-            tasks = batch[task_key]
-        # input = batch["img"]
-        # label = batch["label"]
-        input = input.to(self.device)
-        label = label.to(self.device)
-        return input, label, tasks
+#    def parse_batch_test(self, batch):
+#        if self.cfg.DATASET.COOP:
+#            inp_key, lab_key, task_key = 'img', 'label', 'domain'
+#        else:
+#            inp_key, lab_key, task_key = 0, 1, 3
+#        input = batch[inp_key]
+#        label = batch[lab_key]
+#        tasks = None
+#        if self.multi_task:
+#            tasks = batch[task_key]
+#        # input = batch["img"]
+#        # label = batch["label"]
+#        input = input.to(self.device)
+#        label = label.to(self.device)
+#        return input, label, tasks
 
-    def model_inference(self, input, task=None):
-        return self.model(input, task=task)
+    #def model_inference(self, input, task=None):
+    #    return self.model(input, task=task)
 
-    @torch.no_grad()
-    def test(self, split=None):
-        from tqdm import tqdm
-        import copy 
-        import numpy as np
-        """A generic testing pipeline."""
-        self.set_model_mode("eval")
-        self.evaluator.reset()
+#    @torch.no_grad()
+#    def test(self, split=None):
+#        from tqdm import tqdm
+#        import copy 
+#        import numpy as np
+#        """A generic testing pipeline."""
+#        self.set_model_mode("eval")
+#        self.evaluator.reset()
 
-        if split is None:
-            split = self.cfg.TEST.SPLIT
+#        if split is None:
+#            split = self.cfg.TEST.SPLIT
 
-        if split == "val" and self.val_loader is not None:
-            data_loader = self.val_loader
-        else:
-            split = "test"  # in case val_loader is None
-            data_loader = self.test_loader
+#        if split == "val" and self.val_loader is not None:
+#            data_loader = self.val_loader
+#        else:
+#            split = "test"  # in case val_loader is None
+#            data_loader = self.test_loader
 
-        print(f"Evaluate on the *{split}* set")
+#        print(f"Evaluate on the *{split}* set")
 
-        self.evaluator_task = dict()
+#        self.evaluator_task = dict()
 
-        self.elevator_evaluator = { 'y_pred': [], 'y_true': [] }
+#        self.elevator_evaluator = { 'y_pred': [], 'y_true': [] }
 
-        if self.multi_task:
-            if self.cfg.DATASET.COOP:
-                self.evaluator_task = { task: copy.deepcopy( self.evaluator ) for task in self.dm._task_names }
-            else:
-                self.evaluator_task = { task: copy.deepcopy( self.elevator_evaluator ) for task in self.dm._task_names }
+#        if self.multi_task:
+#            if self.cfg.DATASET.COOP:
+#                self.evaluator_task = { task: copy.deepcopy( self.evaluator ) for task in self.dm._task_names }
+#            else:
+#                self.evaluator_task = { task: copy.deepcopy( self.elevator_evaluator ) for task in self.dm._task_names }
             
-        for batch_idx, batch in enumerate(tqdm(data_loader)):
-            input, label, tasks_ = self.parse_batch_test(batch)
-            output = self.model_inference(input, task=tasks_)
-            # HACK: make everything one-hot vector label!
-            if self.cfg.DATASET.COOP:
-                self.evaluator.process(output, label)
+#        for batch_idx, batch in enumerate(tqdm(data_loader)):
+#            input, label, tasks_ = self.parse_batch_test(batch)
+#            output = self.model_inference(input, task=tasks_)
+#            # HACK: make everything one-hot vector label!
+#            if self.cfg.DATASET.COOP:
+#                self.evaluator.process(output, label)
             
-            else:
-                self.elevator_evaluator['y_pred'].append( output.cpu().detach().numpy() )
-                self.elevator_evaluator['y_true'].append( label.cpu().detach().numpy() )
+#            else:
+#                self.elevator_evaluator['y_pred'].append( output.cpu().detach().numpy() )
+#                self.elevator_evaluator['y_true'].append( label.cpu().detach().numpy() )
 
-            if tasks_ is not None:
-                for out, lab, task in zip(output, label, tasks_):
-                    task = self.dm._id2task[task.item()]
+#            if tasks_ is not None:
+#                for out, lab, task in zip(output, label, tasks_):
+#                    task = self.dm._id2task[task.item()]
                     
-                    if self.cfg.DATASET.COOP:
-                        class_start, class_end = self.dm._task_class_idx[task]
-                        # Evaluate on the task-specific class
-                        out = out[class_start:class_end]
-                        lab -= class_start
-                        self.evaluator_task[task].process(out.unsqueeze(0), lab.unsqueeze(0))
-                    else:
-                        self.evaluator_task[task]['y_pred'].append( [out.cpu().detach().numpy()] )
-                        self.evaluator_task[task]['y_true'].append( [lab.cpu().detach().numpy()] )
+#                    if self.cfg.DATASET.COOP:
+#                        class_start, class_end = self.dm._task_class_idx[task]
+#                        # Evaluate on the task-specific class
+#                        out = out[class_start:class_end]
+#                        lab -= class_start
+#                        self.evaluator_task[task].process(out.unsqueeze(0), lab.unsqueeze(0))
+#                    else:
+#                        self.evaluator_task[task]['y_pred'].append( [out.cpu().detach().numpy()] )
+#                        self.evaluator_task[task]['y_true'].append( [lab.cpu().detach().numpy()] )
         
-        results_overall = {}
-        for task in self.evaluator_task:
-            print(f"evaluate on the *{task}* !")
-            if self.cfg.DATASET.COOP:
-                results = self.evaluator_task[task].evaluate()
-                results_overall[task] = results['accuracy']
-            else:
-                y_true = np.concatenate( self.evaluator_task[task]['y_true'] , axis=0)
-                y_pred = np.concatenate( self.evaluator_task[task]['y_pred'] , axis=0)
-                class_start, class_end = self.dm._task_class_idx[task]
-                y_true = y_true[:, class_start:class_end]
-                y_pred = y_pred[:, class_start:class_end]
+#        results_overall = {}
+#        for task in self.evaluator_task:
+#            print(f"evaluate on the *{task}* !")
+#            if self.cfg.DATASET.COOP:
+#                results = self.evaluator_task[task].evaluate()
+#                results_overall[task] = results['accuracy']
+#            else:
+#                y_true = np.concatenate( self.evaluator_task[task]['y_true'] , axis=0)
+#                y_pred = np.concatenate( self.evaluator_task[task]['y_pred'] , axis=0)
+#                class_start, class_end = self.dm._task_class_idx[task]
+#                y_true = y_true[:, class_start:class_end]
+#                y_pred = y_pred[:, class_start:class_end]
                 
-                if self.dm._metric_name[task] == 'accuracy':
-                    y_true = np.argmax(y_true, axis=-1)
-                metric_result = self.dm._metric[task]( y_true, y_pred )
-                results = { self.dm._metric_name[task]: metric_result }
-                results_overall[ task ] = metric_result
-            print( 'results', results )
-            for k, v in results.items():
-                tag = f"{split}/{task}/{k}"
-                self.write_scalar(tag, v, self.epoch)
+#                if self.dm._metric_name[task] == 'accuracy':
+#                    y_true = np.argmax(y_true, axis=-1)
+#                metric_result = self.dm._metric[task]( y_true, y_pred )
+#                results = { self.dm._metric_name[task]: metric_result }
+#                results_overall[ task ] = metric_result
+#            print( 'results', results )
+#            for k, v in results.items():
+#                tag = f"{split}/{task}/{k}"
+#                self.write_scalar(tag, v, self.epoch)
         
-        print(f"Overall evaluation !")
-        if self.multi_task:
-            multi_task_evalkey = self.cfg.DATASET.MULTITASK_EVALKEY
-            if multi_task_evalkey == 'average':
-                results = {'average' : sum([v for k, v in results_overall.items()]) / len(results_overall)}
-            else:
-                assert multi_task_evalkey in results_overall
-                results = {multi_task_evalkey : results_overall[multi_task_evalkey]}
-                print(f"select {multi_task_evalkey} as the evaluation key")
-        else:
-            if not self.cfg.DATASET.COOP:
-                y_true = np.concatenate( self.elevator_evaluator['y_true'] , axis=0)
-                y_pred = np.concatenate( self.elevator_evaluator['y_pred'] , axis=0)
-                results = { self.dm._metric_name: self.dm._metric( y_true, y_pred ) }
-            else:
-                results = self.evaluator.evaluate()
-        print( 'results', results )
-        for k, v in results.items():
-            tag = f"/{split}/{k}"
-            self.write_scalar(tag, v, self.epoch)
+#        print(f"Overall evaluation !")
+#        if self.multi_task:
+#            multi_task_evalkey = self.cfg.DATASET.MULTITASK_EVALKEY
+#            if multi_task_evalkey == 'average':
+#                results = {'average' : sum([v for k, v in results_overall.items()]) / len(results_overall)}
+#            else:
+#                assert multi_task_evalkey in results_overall
+#                results = {multi_task_evalkey : results_overall[multi_task_evalkey]}
+#                print(f"select {multi_task_evalkey} as the evaluation key")
+#        else:
+#            if not self.cfg.DATASET.COOP:
+#                y_true = np.concatenate( self.elevator_evaluator['y_true'] , axis=0)
+#                y_pred = np.concatenate( self.elevator_evaluator['y_pred'] , axis=0)
+#                results = { self.dm._metric_name: self.dm._metric( y_true, y_pred ) }
+#            else:
+#                results = self.evaluator.evaluate()
+#        print( 'results', results )
+#        for k, v in results.items():
+#            tag = f"/{split}/{k}"
+#            self.write_scalar(tag, v, self.epoch)
         
-        return list(results.values())[0]
+#        return list(results.values())[0]
 
-    def load_model(self, directory, epoch=None):
-        if not directory:
-            print("Note that load_model() is skipped as no pretrained model is given")
-            return
+#    def load_model(self, directory, epoch=None):
+#        if not directory:
+#            print("Note that load_model() is skipped as no pretrained model is given")
+#            return
 
-        names = self.get_model_names()
+#        names = self.get_model_names()
 
-        # By default, the best model is loaded
-        model_file = "model-best.pth.tar"
+#        # By default, the best model is loaded
+#        model_file = "model-best.pth.tar"
 
-        if epoch is not None:
-            model_file = "model.pth.tar-" + str(epoch)
+#        if epoch is not None:
+#            model_file = "model.pth.tar-" + str(epoch)
 
-        for name in names:
-            model_path = osp.join(directory, name, model_file)
+#        for name in names:
+#            model_path = osp.join(directory, name, model_file)
 
-            if not osp.exists(model_path):
-                raise FileNotFoundError('Model not found at "{}"'.format(model_path))
+#            if not osp.exists(model_path):
+#                raise FileNotFoundError('Model not found at "{}"'.format(model_path))
 
-            checkpoint = load_checkpoint(model_path)
-            state_dict = checkpoint["state_dict"]
-            epoch = checkpoint["epoch"]
+#            checkpoint = load_checkpoint(model_path)
+#            state_dict = checkpoint["state_dict"]
+#            epoch = checkpoint["epoch"]
 
-            # Ignore fixed token vectors
-            if "token_prefix" in state_dict:
-                del state_dict["token_prefix"]
+#            # Ignore fixed token vectors
+#            if "token_prefix" in state_dict:
+#                del state_dict["token_prefix"]
 
-            if "token_suffix" in state_dict:
-                del state_dict["token_suffix"]
+#            if "token_suffix" in state_dict:
+#                del state_dict["token_suffix"]
 
-            print("Loading weights to {} " 'from "{}" (epoch = {})'.format(name, model_path, epoch))
-            # set strict=False
-            self._models[name].load_state_dict(state_dict, strict=False)
+#            print("Loading weights to {} " 'from "{}" (epoch = {})'.format(name, model_path, epoch))
+#            # set strict=False
+#            self._models[name].load_state_dict(state_dict, strict=False)
 
 
 
@@ -1093,76 +1100,50 @@ class UPLTrainer(TrainerX):
         if device_count > 1:
             print(f"Multiple GPUs detected (n_gpus={device_count}), use all of them!")
             self.model = nn.DataParallel(self.model)
+
     def forward_backward(self, batch):
-        #image, label = self.parse_batch_train(batch)
-        image, label, tasks_ = self.parse_batch_train(batch)
-        model = self.model
-        optim = self.optim
-        scaler = self.scaler
+        image, label = self.parse_batch_train(batch)
+        prec = self.cfg.TRAINER.UPLTrainer.PREC
         # HACK: for multi-label classification, either works
         if len(label.shape) > 1 and label.shape[-1] > 1:
             label = label.float()
             label /= label.sum(dim=-1, keepdim=True)
 
-        prec = self.cfg.TRAINER.UPLTrainer.PREC
-
         if prec == "amp":
             with autocast():
-                output = self.model(image, task=tasks_)
+                output = self.model(image)
+                # loss = F.cross_entropy(output, label, self.class_weights)
                 loss = F.cross_entropy(output, label)
             self.optim.zero_grad()
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optim)
             self.scaler.update()
         else:
-            output = self.model(image, task=tasks_)
-            # print(label.shape, output.shape, label.dtype, output.dtype, tasks_, label.sum(dim=-1))
-        
+            output = self.model(image)
+            # loss = F.cross_entropy(output, label, self.class_weights)
             loss = F.cross_entropy(output, label)
             self.model_backward_and_update(loss)
 
-        # HACK: During training, we hack the eval of multi-label by selecting only one class
+         # HACK: During training, we hack the eval of multi-label by selecting only one class
         if len(label.shape) > 1 and label.shape[-1] > 1:
             label = torch.argmax(label, dim=1)
-        
-        # result = self.dm._metric(label.squeeze().cpu().detach().numpy(), output.cpu().detach().numpy())
-        
-        #UPL
-        #if prec == "amp":
-        #    with autocast():
-        #        output = self.model(image, task=tasks_)
-        #        loss = F.cross_entropy(output, label)
-        #        #loss = model(image, label)
-        #    optim.zero_grad()
-        #    scaler.scale(loss).backward()
-        #    scaler.step(optim)
-        #    scaler.update()
-        #else:
-        #    output = self.model(image, task=tasks_)
-        #    loss = F.cross_entropy(output, label)
-        #    #loss = model(image, label)
-        #    optim.zero_grad()
-        #    loss.backward()
-        #    optim.step()
-
-        #loss_summary = {"loss": loss.item()}
-
         loss_summary = {
             "loss": loss.item(),
             "acc": compute_accuracy(output, label)[0].item(),
-            # "acc": result,
         }
-        if tasks_ is not None:
-            loss_summary.update({"num_tasks": len(set(tasks_.tolist()))})
 
         if (self.batch_idx + 1) == self.num_batches:
             self.update_lr()
+
         return loss_summary
+
+     
     def parse_batch_train(self, batch):
         input = batch["img"]
         label = batch["label"]
         input = input.to(self.device)
         label = label.to(self.device)
+        
         return input, label
 
     
@@ -1286,7 +1267,9 @@ class UPLTrainer(TrainerX):
             input, label = self.parse_batch_test(batch)
             if trainer_list is None or len(trainer_list)==1:
                 # 如果不是ensemble的测试
+
                 output, image_features, text_features = self.model_inference(input)
+                #output = self.model_inference(input)
                 image_features_all.append(image_features)
                 text_features_all.append(text_features)
             else:
@@ -1318,6 +1301,9 @@ class UPLTrainer(TrainerX):
             self.write_scalar(tag, v, self.epoch)
 
         return list(results.values())[0]
+    def model_inference(self, input, task=None):
+        output, image_features, text_features = self.model(input, task=task)
+        return output, image_features, text_features
 
     @torch.no_grad()
     def zero_shot_analyze(self, trainer_list=None):
