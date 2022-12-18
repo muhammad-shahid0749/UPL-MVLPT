@@ -1267,11 +1267,11 @@ class UPLTrainer(TrainerX):
             input, label = self.parse_batch_test(batch)
             if trainer_list is None or len(trainer_list)==1:
                 # 如果不是ensemble的测试
-
-                output, image_features, text_features = self.model_inference(input)
-                #output = self.model_inference(input)
-                image_features_all.append(image_features)
-                text_features_all.append(text_features)
+                output = self.model_inference(input)
+                
+                #output, image_features, text_features = self.model_inference(input)
+                #image_features_all.append(image_features)
+                #text_features_all.append(text_features)
             else:
                 # ensemble的测试
                 outputs = [t.model_inference(input)[0] for t in trainer_list]
@@ -1284,12 +1284,12 @@ class UPLTrainer(TrainerX):
             if len(outputs_all) != 0:
                 outputs_all = torch.cat(outputs_all, dim=0)
                 label_all = torch.cat(label_all, dim=0)
-                image_features_all = torch.cat(image_features_all, dim=0)
-                text_features_all = text_features_all[0]
-                torch.save(image_features_all, os.path.join(save_path, '{}_v_features.pt'.format(split)))
-                torch.save(image_features_all, os.path.join(save_path, '{}_targets.pt'.format(split)))
+                #image_features_all = torch.cat(image_features_all, dim=0)
+                #text_features_all = text_features_all[0]
+                #torch.save(image_features_all, os.path.join(save_path, '{}_v_features.pt'.format(split)))
+                #torch.save(image_features_all, os.path.join(save_path, '{}_targets.pt'.format(split)))
                 torch.save(outputs_all, os.path.join(save_path, '{}_logits.pt'.format(split)))
-                torch.save(text_features_all, os.path.join(save_path, '{}_l_features.pt'.format(split)))
+                #torch.save(text_features_all, os.path.join(save_path, '{}_l_features.pt'.format(split)))
                 
                
         self.per_image_txt_writer.close()
@@ -1301,9 +1301,9 @@ class UPLTrainer(TrainerX):
             self.write_scalar(tag, v, self.epoch)
 
         return list(results.values())[0]
-    def model_inference(self, input, task=None):
-        output, image_features, text_features = self.model(input, task=task)
-        return output, image_features, text_features
+    #def model_inference(self, input, task=None):
+    #    output, image_features, text_features = self.model(input, task=task)
+    #    return output, image_features, text_features
 
     @torch.no_grad()
     def zero_shot_analyze(self, trainer_list=None):
