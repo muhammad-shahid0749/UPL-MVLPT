@@ -1,4 +1,4 @@
-import imp
+﻿import imp
 from random import sample
 from dassl.engine import TRAINER_REGISTRY, TrainerX
 import os.path as osp
@@ -77,8 +77,7 @@ CUSTOM_TEMPLATES = {
     "ImageNetA": "a photo of a {}.",
     "ImageNetR": "a photo of a {}.",
     "Jaffe": "a photo of a {}.",
-    #"CKPlus": "a photo of a {}.",
-    "CKPlus": "a photo of a person who has a {} facial expression.",
+    "CKPlus": "a photo of person with {} face expression..",
     # semi-supervised templates
     "SSOxfordPets": "a photo of a {}, a type of pet.",
     "SSOxfordFlowers": "a photo of a {}, a type of flower.",
@@ -92,8 +91,7 @@ CUSTOM_TEMPLATES = {
     "SSUCF101": "a photo of a person doing {}.",
     "SSImageNet": "a photo of a {}.",
     "SSJaffe": "a photo of a {} face expression.",
-    #"SSCKPlus": "a photo of {} face expression.",
-    "SSCKPlus": "a photo of a person who has a {} facial expression.", #70% accuracy
+    "SSCKPlus": "a photo of person with {} face expression.",
 }
 
 
