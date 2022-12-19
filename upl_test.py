@@ -25,6 +25,8 @@ import datasets.ucf101
 import datasets.imagenet
 import datasets.jaffe
 import datasets.ck_plus
+import datasets.fer2013
+
 import trainers.upltrainer
 import trainers.hhzsclip
 

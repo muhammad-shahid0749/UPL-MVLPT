@@ -79,6 +79,7 @@ CUSTOM_TEMPLATES = {
     "Jaffe": "a photo of a {}.",
     #"CKPlus": "a photo of a {}.",
     "CKPlus": "a photo of a person who has a {} facial expression.",
+    "FER2013": "a photo of a person who has a {} facial expression.", #70% accuracy
     # semi-supervised templates
     "SSOxfordPets": "a photo of a {}, a type of pet.",
     "SSOxfordFlowers": "a photo of a {}, a type of flower.",
@@ -94,6 +95,7 @@ CUSTOM_TEMPLATES = {
     "SSJaffe": "a photo of a {} face expression.",
     #"SSCKPlus": "a photo of {} face expression.",
     "SSCKPlus": "a photo of a person who has a {} facial expression.", #70% accuracy
+    "SSFER2013": "a photo of a person who has a {} facial expression.", #70% accuracy
 }
 
 
