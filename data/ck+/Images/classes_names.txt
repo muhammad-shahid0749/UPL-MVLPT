@@ -1,0 +1,21 @@
+previous
+anger 
+disgust
+fear
+happy
+neutral
+sadness
+surprise
+
+
+New 
+
+a photo of a person who has a {} facial expression.
+angry 
+disgusted 
+fear
+happy 
+neutral
+sad
+surprised
+
