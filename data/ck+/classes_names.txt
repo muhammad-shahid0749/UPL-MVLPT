@@ -1,0 +1,55 @@
+previous
+anger 
+disgust
+fear
+happy
+neutral
+sadness
+surprise
+
+
+New 
+
+a photo of a person who has a {} facial expression.
+angry(Change to anger)  
+disgusted 
+fear
+happy 
+neutral
+sad
+surprised
+
+* class: 3 (happy)	total: 25	correct: 25	acc: 100.00%
+* class: 5 (sad)	total: 23	correct: 20	acc: 86.96%
+* class: 4 (neutral)	total: 27	correct: 26	acc: 96.30%
+* class: 0 (anger)	total: 16	correct: 10	acc: 62.50%
+* class: 1 (disgusting)	total: 21	correct: 0	acc: 0.00%
+* class: 2 (fear)	total: 17	correct: 13	acc: 76.47%
+* class: 6 (surprise)	total: 24	correct: 18	acc: 75.00%
+* average: 71.03%
+ensemble: 73.20
+
+
+
+JAFFE Datasets
+
+OLD
+
+annoyed
+disgusting
+fear
+happy
+neutral 
+sad 
+surprised
+
+
+New 
+
+anger
+disgust 
+fear
+happy 
+neutral
+sad
+surprise

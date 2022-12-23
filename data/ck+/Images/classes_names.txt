@@ -19,3 +19,33 @@ neutral
 sad
 surprised
 
+
+=> per-class result
+* class: 5 (sadness)	total: 23	correct: 11	acc: 47.83%
+* class: 1 (disgust)	total: 21	correct: 0	acc: 0.00%
+* class: 3 (happy)	total: 25	correct: 25	acc: 100.00%
+* class: 6 (surprise)	total: 24	correct: 24	acc: 100.00%
+* class: 0 (anger)	total: 16	correct: 11	acc: 68.75%
+* class: 2 (fear)	total: 17	correct: 3	acc: 17.65%
+* class: 4 (neutral)	total: 27	correct: 23	acc: 85.19%
+* average: 59.92%
+ensemble: 63.40
+
+a photo of a person who has a {} facial expression.
+
+=> per-class result
+* class: 3 (happy)	total: 25	correct: 25	acc: 100.00%
+* class: 0 (angry)	total: 16	correct: 7	acc: 43.75%
+* class: 1 (disgusted)	total: 21	correct: 3	acc: 14.29%
+* class: 5 (sad)	total: 23	correct: 14	acc: 60.87%
+* class: 6 (surprised)	total: 24	correct: 24	acc: 100.00%
+* class: 2 (fear)	total: 17	correct: 11	acc: 64.71%
+* class: 4 (neutral)	total: 27	correct: 17	acc: 62.96%
+* average: 63.80%
+ensemble: 66.01
+
+
+a photo of a person who is {}.
+
+
+
